@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+dist/
+out/
+*.apk
+*.aab
+*.ipa
+*.app
+
+# Native / toolchain
+*.keystore
+!debug.keystore
+android/local.properties
+android/.gradle/
+ios/Pods/
+ios/build/
+**/*.xcworkspace/xcuserdata/
+
+# Secrets and local config — never commit
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.mobileprovision
+
+# Logs and caches
+*.log
+npm-debug.log*
+.cache/
+.metro-health-check*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
