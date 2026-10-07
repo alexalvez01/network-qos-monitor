@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNetworkStore } from '../store/networkStore';
+import { startNativeTelemetry } from '../telemetry/networkTelemetry';
 import {
   AppPermissionStatuses,
   checkAppPermissions,
@@ -98,7 +99,7 @@ function Hero({
       </View>
       <Text style={styles.heroType}>{type}</Text>
       <Text style={[styles.heroSubtype, subtype == null && styles.dimmed]}>
-        {subtype ?? 'Radio subtype pending native module'}
+        {subtype ?? 'Radio subtype not available'}
       </Text>
     </View>
   );
@@ -156,6 +157,8 @@ export default function StatusScreen() {
   const cellularGeneration = useNetworkStore(s => s.cellularGeneration);
   const strength = useNetworkStore(s => s.strength);
   const carrier = useNetworkStore(s => s.carrier);
+  const signalDbm = useNetworkStore(s => s.signalDbm);
+  const cellIdentity = useNetworkStore(s => s.cellIdentity);
   const isConnected = useNetworkStore(s => s.isConnected);
   const isInternetReachable = useNetworkStore(s => s.isInternetReachable);
 
@@ -164,9 +167,13 @@ export default function StatusScreen() {
   const [requesting, setRequesting] = useState(false);
 
   useEffect(() => {
-    const stop = useNetworkStore.getState().startMonitoring();
+    const stopNetInfo = useNetworkStore.getState().startMonitoring();
+    const stopTelemetry = startNativeTelemetry();
     checkAppPermissions().then(setPermissions, () => undefined);
-    return stop;
+    return () => {
+      stopTelemetry();
+      stopNetInfo();
+    };
   }, []);
 
   const onRequestPermissions = useCallback(async () => {
@@ -198,7 +205,8 @@ export default function StatusScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.appName}>Network QoS Monitor</Text>
         <Text style={styles.appSub}>
-          Stage 1 baseline: live connection, radio details and permissions
+          Stage 2 telemetry: live connection, native radio details and
+          permissions
         </Text>
 
         <Hero type={type} subtype={subtype} connected={isConnected} />
@@ -223,8 +231,13 @@ export default function StatusScreen() {
           />
           <MetricTile
             label="Signal in dBm"
-            value={EMPTY}
-            hint="Arrives with the Stage 2 native module"
+            value={signalDbm == null ? EMPTY : `${signalDbm} dBm`}
+            hint="Live RSSI from the native module"
+          />
+          <MetricTile
+            label="Serving cell"
+            value={displayText(cellIdentity)}
+            hint="Cell identity for coverage mapping"
           />
         </View>
 

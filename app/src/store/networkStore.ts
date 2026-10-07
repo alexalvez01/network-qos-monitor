@@ -8,11 +8,12 @@
  *
  * Seam for the Stage 2 Kotlin/Swift TurboModule: the store keeps `subtype`
  * (exact radio string such as LTE/NR), `signalDbm` and `cellIdentity` as
- * first-class nullable fields, but nothing fills them yet. The future native
- * module publishes through `applyNativeTelemetry()` behind the
- * `NativeTelemetryPatch` contract — no screen or selector changes needed.
- * Until then those fields stay null and the screen shows an honest
- * "not available" empty state instead of fabricated data.
+ * first-class nullable fields, filled by `src/telemetry/networkTelemetry.ts`
+ * through `applyNativeTelemetry()` behind the `NativeTelemetryPatch`
+ * contract — no screen or selector changes needed. Where the platform
+ * withholds a field (no permission, empty CellInfo, emulator/simulator),
+ * it stays null and the screen shows an honest "not available" empty state
+ * instead of fabricated data.
  */
 
 import { create } from 'zustand';
@@ -23,7 +24,7 @@ export type CellularGeneration = '2g' | '3g' | '4g' | '5g';
 export interface NetworkSnapshot {
   /** Uppercase connection class: WIFI, CELLULAR, NONE, UNKNOWN, … */
   type: string;
-  /** Exact radio string (LTE, NR, HSPA, …). Null in Stage 1. */
+  /** Exact radio string (LTE, NR, HSPA, …). Live since Stage 2. */
   subtype: string | null;
   cellularGeneration: CellularGeneration | null;
   /** Wi-Fi signal level, 0–100 (Android only). */
@@ -31,9 +32,9 @@ export interface NetworkSnapshot {
   carrier: string | null;
   isConnected: boolean | null;
   isInternetReachable: boolean | null;
-  /** RSSI in dBm. Native-only seam, null until Stage 2. */
+  /** RSSI in dBm. Native-only seam, live since Stage 2. */
   signalDbm: number | null;
-  /** Serving cell identity. Native-only seam, null until Stage 2. */
+  /** Serving cell identity. Native-only seam, live since Stage 2. */
   cellIdentity: string | null;
   updatedAt: number | null;
   raw: NetInfoState | null;

@@ -47,5 +47,18 @@
   },
   "engines": {
     "node": ">= 22.11.0"
+  },
+  "codegenConfig": {
+    "name": "NetworkTelemetrySpec",
+    "type": "modules",
+    "jsSrcsDir": "src/specs",
+    "android": {
+      "javaPackageName": "com.networkqosmonitor.telemetry"
+    },
+    "ios": {
+      "modulesProvider": {
+        "NativeNetworkTelemetry": "RCTNetworkTelemetry"
+      }
+    }
   }
 }
