@@ -27,6 +27,7 @@ import {
   PermissionStatus,
   requestAppPermissions,
 } from '../permissions/permissions';
+import { COLORS } from '../visualization/theme';
 
 const EMPTY = 'Not available';
 
@@ -60,17 +61,6 @@ function statusColor(status: PermissionStatus): string {
       return COLORS.muted;
   }
 }
-
-const COLORS = {
-  abyss: '#0A1F33',
-  panel: '#14324C',
-  panelEdge: '#1E4565',
-  ink: '#EAF4FA',
-  muted: '#8FA9BE',
-  signal: '#41E6A4',
-  warn: '#FFB224',
-  danger: '#FF5C5C',
-};
 
 function LiveDot({ connected }: { connected: boolean | null }) {
   const color =

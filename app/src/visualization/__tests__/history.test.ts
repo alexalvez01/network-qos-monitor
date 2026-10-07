@@ -1,10 +1,13 @@
 import {
+  DATE_RANGE_LABELS,
   filterSummaries,
   formatDuration,
   formatLatency,
   formatThroughput,
   formatTimestamp,
+  resolveDateRange,
   summarizeSession,
+  WORLD_AREA,
 } from '../history/history';
 import type { SessionSummary } from '../history/history';
 import type { SampleRecord, SessionRecord } from '../../data/types';
@@ -121,6 +124,101 @@ describe('filterSummaries', () => {
       filterSummaries(summaries(), { query: 'WALK' }).map(s => s.session.id),
     ).toEqual(['a']);
     expect(filterSummaries(summaries(), { query: 'zzz' })).toHaveLength(0);
+  });
+
+  test('area keeps sessions whose bounds intersect the box', () => {
+    const local = summarizeSession(session({ id: 'local' }), [
+      sample({ latitude: -32.484, longitude: -58.232 }),
+    ]);
+    const far = summarizeSession(session({ id: 'far' }), [
+      sample({ latitude: 40.712, longitude: -74.006 }),
+    ]);
+    const unlocated = summarizeSession(session({ id: 'nowhere' }), []);
+    const all = [local, far, unlocated];
+    const homeBox = {
+      minLat: -33,
+      maxLat: -32,
+      minLng: -59,
+      maxLng: -58,
+    };
+    expect(
+      filterSummaries(all, { area: homeBox }).map(s => s.session.id),
+    ).toEqual(['local']);
+    // Inverted edges are ordered, not treated as empty.
+    expect(
+      filterSummaries(all, {
+        area: { minLat: -32, maxLat: -33, minLng: -58, maxLng: -59 },
+      }).map(s => s.session.id),
+    ).toEqual(['local']);
+    // Edge-inclusive: a box touching exactly the session corner matches.
+    expect(
+      filterSummaries(all, {
+        area: {
+          minLat: -32.484,
+          maxLat: -32.484,
+          minLng: -58.232,
+          maxLng: -58.232,
+        },
+      }).map(s => s.session.id),
+    ).toEqual(['local']);
+    // The world box is the has-location test: unlocated sessions drop out.
+    expect(
+      filterSummaries(all, { area: WORLD_AREA }).map(s => s.session.id),
+    ).toEqual(['local', 'far']);
+    // No area clause keeps everything, including unlocated sessions.
+    expect(filterSummaries(all, {})).toHaveLength(3);
+  });
+
+  test('area AND-combines with the network clause', () => {
+    const lteLocal = summarizeSession(session({ id: 'a' }), [
+      sample({ networkType: 'lte', latitude: -32.484, longitude: -58.232 }),
+    ]);
+    const nrLocal = summarizeSession(session({ id: 'b' }), [
+      sample({ networkType: 'nr', latitude: -32.484, longitude: -58.232 }),
+    ]);
+    const homeBox = {
+      minLat: -33,
+      maxLat: -32,
+      minLng: -59,
+      maxLng: -58,
+    };
+    expect(
+      filterSummaries([lteLocal, nrLocal], {
+        networkType: 'nr',
+        area: homeBox,
+      }).map(s => s.session.id),
+    ).toEqual(['b']);
+  });
+});
+
+describe('resolveDateRange', () => {
+  const now = Date.UTC(2026, 9, 20, 15, 0, 0);
+
+  test('all means no date clause', () => {
+    expect(resolveDateRange('all', now)).toBeNull();
+  });
+
+  test('presets span back from now', () => {
+    expect(resolveDateRange('day', now)).toEqual({
+      startMs: now - 24 * 60 * 60 * 1000,
+      endMs: now,
+    });
+    expect(resolveDateRange('week', now)?.startMs).toBe(
+      now - 7 * 24 * 60 * 60 * 1000,
+    );
+    expect(resolveDateRange('month', now)?.startMs).toBe(
+      now - 30 * 24 * 60 * 60 * 1000,
+    );
+  });
+
+  test('every preset has a label for the chip row', () => {
+    for (const preset of ['all', 'day', 'week', 'month'] as const) {
+      expect(DATE_RANGE_LABELS[preset].length).toBeGreaterThan(0);
+    }
+  });
+
+  test('a non-finite clock disables the clause instead of filtering everything', () => {
+    expect(resolveDateRange('day', NaN)).toBeNull();
   });
 });
 

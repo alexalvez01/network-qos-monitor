@@ -7,7 +7,12 @@
  * unit-tested on Windows without SQLite or React Native.
  */
 
-import type { SampleRecord, SessionRecord } from '../../data/types';
+import type {
+  BoundingBox,
+  SampleRecord,
+  SessionRecord,
+} from '../../data/types';
+import { normalizeBoundingBox } from '../../data/queries';
 
 export interface SessionSummary {
   session: SessionRecord;
@@ -33,8 +38,68 @@ export interface HistoryFilter {
   /** Inclusive epoch-ms window on the session start; null edge = open. */
   startMs?: number | null;
   endMs?: number | null;
+  /**
+   * Keep sessions whose geographic window intersects this box (inclusive).
+   * Null/undefined = all. Sessions without located samples never match an
+   * active area filter — absence of position is data, not a pass.
+   */
+  area?: BoundingBox | null;
   /** Case-insensitive substring on the session name; '' or undefined = all. */
   query?: string;
+}
+
+/**
+ * Whole-world box. Intersecting a session against it is exactly the
+ * "has located samples" test, which is what the History screen's
+ * "With location" toggle passes as its area clause — a phone list cannot
+ * hand-draw a box, so the UI wires the meaningful subset while this
+ * module supports arbitrary boxes (unit-tested below).
+ */
+export const WORLD_AREA: BoundingBox = {
+  minLat: -90,
+  maxLat: 90,
+  minLng: -180,
+  maxLng: 180,
+};
+
+/** Date-range presets offered by the History screen (RF-09). */
+export type DateRangePreset = 'all' | 'day' | 'week' | 'month';
+
+export const DATE_RANGE_LABELS: Record<DateRangePreset, string> = {
+  all: 'All time',
+  day: 'Last 24 h',
+  week: 'Last 7 days',
+  month: 'Last 30 days',
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Resolve a preset to an inclusive epoch-ms window ending at nowMs.
+ * Returns null for 'all' (no date clause). Pure: the screen passes
+ * Date.now(), tests pass a fixed clock.
+ */
+export function resolveDateRange(
+  preset: DateRangePreset,
+  nowMs: number,
+): { startMs: number; endMs: number } | null {
+  if (preset === 'all' || !Number.isFinite(nowMs)) {
+    return null;
+  }
+  const span = preset === 'day' ? DAY_MS : preset === 'week' ? 7 * DAY_MS : 30 * DAY_MS;
+  return { startMs: nowMs - span, endMs: nowMs };
+}
+
+function boundsIntersect(
+  bounds: NonNullable<SessionSummary['bounds']>,
+  box: BoundingBox,
+): boolean {
+  return (
+    bounds.minLat <= box.maxLat &&
+    bounds.maxLat >= box.minLat &&
+    bounds.minLng <= box.maxLng &&
+    bounds.maxLng >= box.minLng
+  );
 }
 
 /**
@@ -120,6 +185,14 @@ export function filterSummaries(
     }
     if (hi !== null && summary.session.startedAt > hi) {
       return false;
+    }
+    if (filter.area) {
+      // Inverted edges are ordered by the normalizer; sessions without a
+      // geographic window cannot intersect any box.
+      const box = normalizeBoundingBox(filter.area);
+      if (!summary.bounds || !boundsIntersect(summary.bounds, box)) {
+        return false;
+      }
     }
     if (query.length > 0) {
       const name = summary.session.name ?? '';

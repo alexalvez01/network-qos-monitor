@@ -74,7 +74,11 @@ export default function HeatMapView({
         }>
         <UrlTile
           urlTemplate={OSM_TILE_URL_TEMPLATE}
-          maximumZ={19}
+          // Capped at 18: street-level tiles add nothing to a coverage
+          // heatmap, and fewer zoom levels mean fewer tile requests against
+          // a policy that asks clients to identify themselves — which
+          // UrlTile cannot do (no header option). See docs/limitations.md.
+          maximumZ={18}
           tileSize={256}
         />
         {cells.map(cell => {

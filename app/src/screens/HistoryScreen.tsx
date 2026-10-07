@@ -20,14 +20,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LineChart from '../visualization/charts/LineChart';
 import {
+  DATE_RANGE_LABELS,
   filterSummaries,
   formatDuration,
   formatLatency,
   formatThroughput,
   formatTimestamp,
+  resolveDateRange,
   summarizeSession,
+  WORLD_AREA,
 } from '../visualization/history/history';
-import type { SessionSummary } from '../visualization/history/history';
+import type {
+  DateRangePreset,
+  SessionSummary,
+} from '../visualization/history/history';
 import { useSessionData } from '../visualization/history/useSessionData';
 import { useVisualizationStore } from '../visualization/visualizationStore';
 import { CHART_SERIES, COLORS } from '../visualization/theme';
@@ -88,6 +94,8 @@ export default function HistoryScreen() {
   const selectSession = useVisualizationStore(s => s.selectSession);
   const { loading, error, sessions, reload } = useSessionData();
   const [networkFilter, setNetworkFilter] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DateRangePreset>('all');
+  const [locationOnly, setLocationOnly] = useState(false);
 
   const summaries = useMemo<SessionSummary[]>(
     () =>
@@ -105,10 +113,40 @@ export default function HistoryScreen() {
     return [...set].sort();
   }, [summaries]);
 
-  const visible = useMemo(
-    () => filterSummaries(summaries, { networkType: networkFilter }),
-    [summaries, networkFilter],
-  );
+  const visible = useMemo(() => {
+    const range = resolveDateRange(datePreset, Date.now());
+    return filterSummaries(summaries, {
+      networkType: networkFilter,
+      startMs: range?.startMs ?? null,
+      endMs: range?.endMs ?? null,
+      // A phone list cannot hand-draw a box, so "With location" wires the
+      // area clause as the whole-world box: exactly the has-position test.
+      area: locationOnly ? WORLD_AREA : null,
+    });
+  }, [summaries, networkFilter, datePreset, locationOnly]);
+
+  const filtersActive =
+    networkFilter !== null || datePreset !== 'all' || locationOnly;
+
+  const clearFilters = () => {
+    setNetworkFilter(null);
+    setDatePreset('all');
+    setLocationOnly(false);
+  };
+
+  const activeFilterNames = useMemo(() => {
+    const names: string[] = [];
+    if (networkFilter) {
+      names.push(`link ${networkFilter}`);
+    }
+    if (datePreset !== 'all') {
+      names.push(DATE_RANGE_LABELS[datePreset].toLowerCase());
+    }
+    if (locationOnly) {
+      names.push('with location');
+    }
+    return names;
+  }, [networkFilter, datePreset, locationOnly]);
 
   const selected = useMemo(() => {
     if (!selectedSessionId) {
@@ -188,22 +226,67 @@ export default function HistoryScreen() {
       </View>
 
       {availableNetworks.length > 0 ? (
-        <View style={styles.chips}>
-          <FilterChip
-            label="All"
-            active={networkFilter === null}
-            onPress={() => setNetworkFilter(null)}
-          />
-          {availableNetworks.map(network => (
+        <>
+          <Text style={styles.filterLabel}>Link</Text>
+          <View style={styles.chips}>
             <FilterChip
-              key={network}
-              label={network}
-              active={networkFilter === network}
-              onPress={() =>
-                setNetworkFilter(current => (current === network ? null : network))
-              }
+              label="All"
+              active={networkFilter === null}
+              onPress={() => setNetworkFilter(null)}
             />
-          ))}
+            {availableNetworks.map(network => (
+              <FilterChip
+                key={network}
+                label={network}
+                active={networkFilter === network}
+                onPress={() =>
+                  setNetworkFilter(current => (current === network ? null : network))
+                }
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      <Text style={styles.filterLabel}>When</Text>
+      <View style={styles.chips}>
+        {(Object.keys(DATE_RANGE_LABELS) as DateRangePreset[]).map(preset => (
+          <FilterChip
+            key={preset}
+            label={DATE_RANGE_LABELS[preset]}
+            active={datePreset === preset}
+            onPress={() => setDatePreset(preset)}
+          />
+        ))}
+      </View>
+
+      <Text style={styles.filterLabel}>Where</Text>
+      <View style={styles.chips}>
+        <FilterChip
+          label="All areas"
+          active={!locationOnly}
+          onPress={() => setLocationOnly(false)}
+        />
+        <FilterChip
+          label="With location"
+          active={locationOnly}
+          onPress={() => setLocationOnly(true)}
+        />
+      </View>
+
+      {filtersActive && !loading && !error ? (
+        <View style={styles.resultRow}>
+          <Text style={styles.resultText}>
+            Showing {visible.length} of {summaries.length}{' '}
+            {summaries.length === 1 ? 'walk' : 'walks'}
+          </Text>
+          <Pressable
+            style={styles.clearButton}
+            onPress={clearFilters}
+            accessibilityRole="button"
+            accessibilityLabel="Clear all history filters">
+            <Text style={styles.clearText}>Clear filters</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -239,10 +322,18 @@ export default function HistoryScreen() {
 
       {!loading && !error && summaries.length > 0 && visible.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.emptyTitle}>No walks on this link</Text>
+          <Text style={styles.emptyTitle}>No walks match these filters</Text>
           <Text style={styles.emptyBody}>
-            No walk used {networkFilter}. Clear the filter to see every walk.
+            Nothing recorded{activeFilterNames.length > 0 ? ` ${activeFilterNames.join(', ')}` : ''}.
+            Clear the filters to see every walk.
           </Text>
+          <Pressable
+            style={styles.retryButton}
+            onPress={clearFilters}
+            accessibilityRole="button"
+            accessibilityLabel="Clear all history filters">
+            <Text style={styles.retryText}>Clear filters</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -313,7 +404,35 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     paddingHorizontal: 20,
+    paddingTop: 6,
+  },
+  filterLabel: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 20,
     paddingTop: 12,
+  },
+  resultRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  resultText: {
+    color: COLORS.muted,
+    fontSize: 12,
+  },
+  clearButton: {
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 8,
+  },
+  clearText: {
+    color: COLORS.signal,
+    fontSize: 13,
+    fontWeight: '700',
   },
   chip: {
     alignItems: 'center',
@@ -321,7 +440,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.panelEdge,
     borderRadius: 16,
     borderWidth: 1,
-    minHeight: 36,
+    minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: 14,
   },
