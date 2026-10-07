@@ -1,21 +1,29 @@
 /**
- * Root shell for Stage 5: state-driven tabs across Status / Map / History.
+ * Root shell for Stage 6: state-driven tabs across Status / Map / History,
+ * plus the Export surface and one-time background-fetch registration.
  *
  * Deliberately no navigation library: three full-screen surfaces with no
  * deep links, params or nested stacks do not justify a router dependency.
  * The active tab lives in the visualization store (ADR-9) so any screen
  * can request a tab switch without prop drilling. StatusScreen is
  * untouched — it renders as the default tab exactly as Stage 1 built it.
+ *
+ * Export rides on local state instead of the visualization store on
+ * purpose: VisualizationTab is owned by Stage 5 and off-limits, and an
+ * export overlay is not a visualization concern. The background pass is
+ * registered once here (RF-07); WorkManager owns the cadence afterwards.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import StatusScreen from './src/screens/StatusScreen';
 import MapScreen from './src/screens/MapScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
+import ExportScreen from './src/screens/ExportScreen';
 import { useVisualizationStore } from './src/visualization/visualizationStore';
 import type { VisualizationTab } from './src/visualization/visualizationStore';
+import { configureBackgroundFetch } from './src/background/backgroundTask';
 import { COLORS } from './src/visualization/theme';
 
 const TABS: Array<{ id: VisualizationTab; label: string }> = [
@@ -27,11 +35,25 @@ const TABS: Array<{ id: VisualizationTab; label: string }> = [
 function App() {
   const tab = useVisualizationStore(s => s.tab);
   const setTab = useVisualizationStore(s => s.setTab);
+  const [exportOpen, setExportOpen] = useState(false);
+
+  // Fire-and-forget by contract: configureBackgroundFetch never rejects,
+  // it mirrors failure to the background store instead.
+  useEffect(() => {
+    configureBackgroundFetch();
+  }, []);
+
+  const openTab = (id: VisualizationTab) => {
+    setExportOpen(false);
+    setTab(id);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.body}>
-        {tab === 'status' ? (
+        {exportOpen ? (
+          <ExportScreen onBack={() => setExportOpen(false)} />
+        ) : tab === 'status' ? (
           <StatusScreen />
         ) : tab === 'map' ? (
           <MapScreen />
@@ -41,12 +63,12 @@ function App() {
       </View>
       <View style={styles.bar} accessibilityRole="tablist">
         {TABS.map(item => {
-          const active = item.id === tab;
+          const active = item.id === tab && !exportOpen;
           return (
             <Pressable
               key={item.id}
               style={[styles.tab, active && styles.tabActive]}
-              onPress={() => setTab(item.id)}
+              onPress={() => openTab(item.id)}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               accessibilityLabel={`${item.label} tab`}>
@@ -57,6 +79,17 @@ function App() {
             </Pressable>
           );
         })}
+        <Pressable
+          style={[styles.tab, exportOpen && styles.tabActive]}
+          onPress={() => setExportOpen(true)}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: exportOpen }}
+          accessibilityLabel="Export tab">
+          <Text style={[styles.tabText, exportOpen && styles.tabTextActive]}>
+            Export
+          </Text>
+          {exportOpen ? <View style={styles.tabDot} /> : null}
+        </Pressable>
       </View>
     </SafeAreaView>
   );
