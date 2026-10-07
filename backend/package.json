@@ -1,0 +1,15 @@
+{
+  "name": "qos-reference-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reference throughput backend for the Network QoS Monitor app (GET /download, POST /upload).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0"
+  }
+}
