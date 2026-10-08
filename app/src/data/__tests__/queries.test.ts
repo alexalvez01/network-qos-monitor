@@ -34,6 +34,7 @@ function sample(): NewSampleInput {
     rttJitterMs: 10,
     downloadMbps: 4,
     uploadMbps: 2,
+    signalDbm: null,
   };
 }
 

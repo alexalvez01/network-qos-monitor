@@ -190,9 +190,8 @@ export function qualityColor(score: number, alpha = 0.4): string {
 }
 
 /**
- * A persisted sample becomes a heat point. The schema carries no signal
- * column (ADR-2: dBm is an Android-live value), so dbm is always null
- * here — live points with dBm are built by the map screen, not this.
+ * A persisted sample becomes a heat point. dBm is captured on Android only
+ * (ADR-2); iOS rows and pre-migration rows carry null.
  */
 export function sampleToHeatPoint(sample: SampleRecord): HeatPoint {
   return {
@@ -200,7 +199,7 @@ export function sampleToHeatPoint(sample: SampleRecord): HeatPoint {
     longitude: sample.longitude,
     latencyMs: sample.rttMeanMs,
     throughputMbps: sample.downloadMbps,
-    dbm: null,
+    dbm: sample.signalDbm,
   };
 }
 

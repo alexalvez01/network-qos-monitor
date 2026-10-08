@@ -10,7 +10,7 @@
 
 import type { MeasurementSet } from '../measurement/types';
 import type { Database, DbRow } from './database';
-import { SCHEMA_STATEMENTS } from './schema';
+import { SCHEMA_MIGRATIONS, SCHEMA_STATEMENTS } from './schema';
 import {
   insertSample,
   insertSession,
@@ -63,6 +63,8 @@ export interface SaveMeasurementOptions {
   /** Fix attached to every row; null/undefined aborts the write. */
   position: SampleCoordinates | null | undefined;
   networkType?: string | null;
+  /** Live radio signal; Android-only (ADR-2), omitted elsewhere. */
+  signalDbm?: number | null;
   /** Defaults to Date.now(); pass the set's endedAt for determinism. */
   timestamp?: number;
 }
@@ -110,6 +112,7 @@ export function mapRowToSample(row: DbRow): SampleRecord {
     rttJitterMs: toNullableNumber(row['rtt_jitter_ms']),
     downloadMbps: toNullableNumber(row['download_mbps']),
     uploadMbps: toNullableNumber(row['upload_mbps']),
+    signalDbm: toNullableNumber(row['signal_dbm']),
   };
 }
 
@@ -170,6 +173,7 @@ export function measurementSetToSamples(
     rttJitterMs: host.rtt.jitterMs,
     downloadMbps: set.download?.mbps ?? null,
     uploadMbps: set.upload?.mbps ?? null,
+    signalDbm: options.signalDbm ?? null,
   }));
 }
 
@@ -186,6 +190,14 @@ export class MeasurementRepository {
       throw new DatabaseError('failed to initialize database schema', {
         cause: err,
       });
+    }
+    for (const migration of SCHEMA_MIGRATIONS) {
+      try {
+        await this.db.execute(migration);
+      } catch {
+        // Already applied (duplicate column) — fresh installs get the
+        // column from CREATE TABLE.
+      }
     }
   }
 

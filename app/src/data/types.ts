@@ -56,6 +56,8 @@ export interface SampleRecord {
   rttJitterMs: number | null;
   downloadMbps: number | null;
   uploadMbps: number | null;
+  /** Radio signal at capture time (Android only, ADR-2); null when withheld. */
+  signalDbm: number | null;
 }
 
 export type NewSampleInput = Omit<SampleRecord, 'id'>;

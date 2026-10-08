@@ -84,6 +84,7 @@ export function buildSeedWalk(count: number = SEED_WALK_SIZE): SeedWalk {
       rttJitterMs: 6,
       downloadMbps: throughputMbps,
       uploadMbps: Math.round(throughputMbps * 0.4 * 10) / 10,
+      signalDbm: Math.round(-72 - hump * 30),
     });
   }
   return { session, samples };

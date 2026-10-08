@@ -34,6 +34,7 @@ export const SAMPLE_CSV_COLUMNS: readonly string[] = [
   'rtt_jitter_ms',
   'download_mbps',
   'upload_mbps',
+  'signal_dbm',
 ];
 
 export const SESSION_CSV_COLUMNS: readonly string[] = [
@@ -80,6 +81,7 @@ function sampleToRow(sample: SampleRecord): string {
     cell(sample.rttJitterMs),
     cell(sample.downloadMbps),
     cell(sample.uploadMbps),
+    cell(sample.signalDbm),
   ].join(',');
 }
 

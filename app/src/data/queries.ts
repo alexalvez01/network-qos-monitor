@@ -45,6 +45,7 @@ export const SAMPLE_COLUMN_NAMES: readonly string[] = [
   'rtt_jitter_ms',
   'download_mbps',
   'upload_mbps',
+  'signal_dbm',
 ];
 
 export const SAMPLE_COLUMNS = SAMPLE_COLUMN_NAMES.join(', ');
@@ -197,6 +198,8 @@ function sampleValue(sample: NewSampleInput, column: string): SqlParam {
       return sample.downloadMbps;
     case 'upload_mbps':
       return sample.uploadMbps;
+    case 'signal_dbm':
+      return sample.signalDbm;
     default:
       throw new Error(`unknown sample column: ${column}`);
   }

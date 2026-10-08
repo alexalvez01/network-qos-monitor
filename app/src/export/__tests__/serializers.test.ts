@@ -45,6 +45,7 @@ function sample(overrides: Partial<SampleRecord> = {}): SampleRecord {
     rttJitterMs: 8,
     downloadMbps: 42.5,
     uploadMbps: 11.2,
+    signalDbm: null,
     ...overrides,
   };
 }

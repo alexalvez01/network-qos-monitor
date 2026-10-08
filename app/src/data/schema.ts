@@ -19,7 +19,7 @@
  */
 
 export const DATABASE_NAME = 'network-qos.db';
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const TABLE_SESSIONS = 'sessions';
 export const TABLE_SAMPLES = 'samples';
@@ -54,8 +54,20 @@ export const CREATE_SAMPLES_TABLE = `CREATE TABLE IF NOT EXISTS samples (
   rtt_p95_ms REAL,
   rtt_jitter_ms REAL,
   download_mbps REAL,
-  upload_mbps REAL
+  upload_mbps REAL,
+  signal_dbm REAL
 );`;
+
+/**
+ * Additive migrations for databases created by an older build. Each one
+ * fails harmlessly when already applied (duplicate column), so repository
+ * init runs them best-effort after SCHEMA_STATEMENTS.
+ */
+export const SCHEMA_MIGRATIONS: readonly string[] = [
+  'ALTER TABLE samples ADD COLUMN signal_dbm REAL;',
+  // Key/value store for user settings (probe hosts, backend address).
+  'CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);',
+];
 
 export const CREATE_INDEX_SAMPLES_TIMESTAMP =
   'CREATE INDEX IF NOT EXISTS idx_samples_timestamp ON samples (timestamp);';
