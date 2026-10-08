@@ -18,7 +18,6 @@
     "react": "19.2.3",
     "react-native": "0.87.1",
     "react-native-background-fetch": "^4.4.2",
-    "react-native-maps": "^1.29.11",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-svg": "^15.15.5",
     "react-native-tcp-socket": "^6.4.3",
