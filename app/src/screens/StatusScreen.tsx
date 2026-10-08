@@ -20,7 +20,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNetworkStore } from '../store/networkStore';
-import { startNativeTelemetry } from '../telemetry/networkTelemetry';
 import {
   AppPermissionStatuses,
   checkAppPermissions,
@@ -89,7 +88,11 @@ function Hero({
       </View>
       <Text style={styles.heroType}>{type}</Text>
       <Text style={[styles.heroSubtype, subtype == null && styles.dimmed]}>
-        {subtype ?? 'Radio subtype not available'}
+        {subtype == null
+          ? 'Radio subtype not available'
+          : type.toLowerCase() === 'wifi'
+            ? `Cellular radio standing by: ${subtype}`
+            : subtype}
       </Text>
     </View>
   );
@@ -156,14 +159,10 @@ export default function StatusScreen() {
     useState<AppPermissionStatuses>(INITIAL_PERMISSIONS);
   const [requesting, setRequesting] = useState(false);
 
+  // NetInfo and native telemetry are started once in App (they feed
+  // Measure too); this screen only reads the store.
   useEffect(() => {
-    const stopNetInfo = useNetworkStore.getState().startMonitoring();
-    const stopTelemetry = startNativeTelemetry();
     checkAppPermissions().then(setPermissions, () => undefined);
-    return () => {
-      stopTelemetry();
-      stopNetInfo();
-    };
   }, []);
 
   const onRequestPermissions = useCallback(async () => {
@@ -195,8 +194,8 @@ export default function StatusScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.appName}>Network QoS Monitor</Text>
         <Text style={styles.appSub}>
-          Stage 2 telemetry: live connection, native radio details and
-          permissions
+          Live connection class, native radio details (carrier, dBm, cell)
+          and permissions
         </Text>
 
         <Hero type={type} subtype={subtype} connected={isConnected} />

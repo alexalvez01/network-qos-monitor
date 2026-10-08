@@ -1,5 +1,5 @@
 /**
- * Root shell for Stage 6: state-driven tabs across Status / Map / History,
+ * Root shell: state-driven tabs across Status / Measure / Map / History,
  * plus the Export surface and one-time background-fetch registration.
  *
  * Deliberately no navigation library: three full-screen surfaces with no
@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import StatusScreen from './src/screens/StatusScreen';
+import MeasureScreen from './src/screens/MeasureScreen';
 import MapScreen from './src/screens/MapScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import ExportScreen from './src/screens/ExportScreen';
@@ -25,9 +26,12 @@ import { useVisualizationStore } from './src/visualization/visualizationStore';
 import type { VisualizationTab } from './src/visualization/visualizationStore';
 import { configureBackgroundFetch } from './src/background/backgroundTask';
 import { COLORS } from './src/visualization/theme';
+import { useNetworkStore } from './src/store/networkStore';
+import { startNativeTelemetry } from './src/telemetry/networkTelemetry';
 
 const TABS: Array<{ id: VisualizationTab; label: string }> = [
   { id: 'status', label: 'Status' },
+  { id: 'measure', label: 'Measure' },
   { id: 'map', label: 'Map' },
   { id: 'history', label: 'History' },
 ];
@@ -43,6 +47,17 @@ function App() {
     configureBackgroundFetch();
   }, []);
 
+  // Radio state is app-wide: Measure stamps every sample with it, so the
+  // listeners must outlive any single tab.
+  useEffect(() => {
+    const stopNetInfo = useNetworkStore.getState().startMonitoring();
+    const stopTelemetry = startNativeTelemetry();
+    return () => {
+      stopTelemetry();
+      stopNetInfo();
+    };
+  }, []);
+
   const openTab = (id: VisualizationTab) => {
     setExportOpen(false);
     setTab(id);
@@ -55,6 +70,8 @@ function App() {
           <ExportScreen onBack={() => setExportOpen(false)} />
         ) : tab === 'status' ? (
           <StatusScreen />
+        ) : tab === 'measure' ? (
+          <MeasureScreen />
         ) : tab === 'map' ? (
           <MapScreen />
         ) : (

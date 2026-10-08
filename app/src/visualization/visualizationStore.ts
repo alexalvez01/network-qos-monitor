@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 import type { QualityMetric } from './heat/heat';
 
-export type VisualizationTab = 'status' | 'map' | 'history';
+export type VisualizationTab = 'status' | 'measure' | 'map' | 'history';
 
 interface VisualizationState {
   tab: VisualizationTab;
