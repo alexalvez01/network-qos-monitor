@@ -9,7 +9,7 @@ no device.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Screens  Status · Map · History · Export  (React Native)    │
+│ Screens  Status · Measure · Map · History · Export (RN)     │
 │          subscribe to stores, render; never open sockets     │
 ├─────────────────────────────────────────────────────────────┤
 │ Stores   networkStore · visualizationStore · backgroundStore │
@@ -94,14 +94,21 @@ Consequences worth naming:
    (`measurementSetToSamples`), stamps coordinates + network type, and writes
    under a session id. No coordinates → `MissingCoordinatesError`, whole set
    rejected: partial sets are never stored.
-4. Background: `runBackgroundMeasurementPass()` repeats the same path with
+4. Foreground: the Measure screen calls `measureController` (outside React,
+   so auto-repeat survives tab switches), which runs `runForegroundPass()`:
+   probes the user-configured hosts (≥3, persisted in `app_settings`), runs
+   download/upload against the reference backend, publishes to the
+   measurement store and, inside an active walk, saves the set with GPS,
+   network type and live dBm.
+5. Background: `runBackgroundMeasurementPass()` repeats the same path with
    `{ probe: DEFAULT_PROBE_CONFIG, throughput: null }` — probes-only, no
    megabyte download in a headless window — under the rolling `'background'`
    session, then runs `detectDegradation()` thresholds and notifies.
-5. Presentation reads through hooks into summaries (`history.ts`), heat cells
+6. Presentation reads through hooks into summaries (`history.ts`), heat cells
    (`heat/heat.ts`: grid aggregation, score normalization, color mapping) and
    chart series (`charts/`), rendered by `LineChart` (react-native-svg paths)
-   and `HeatMapView` (OSM `UrlTile` + native `Circle`s).
+   and `HeatMapView` (OSM raster tiles as Images + SVG circles; projection
+   and tile math in `heat/tiles.ts`).
 
 ## Query shapes (RF-04 → RF-09)
 
@@ -125,13 +132,13 @@ the History screen only renders what they return.
 
 ## Testing strategy
 
-- **Jest on Windows, no device:** 19 suites / 152 tests covering stats,
+- **Jest on Windows, no device:** 23 suites / 176 tests covering stats,
   engine, probe scheduling, throughput math, SQL builders, repository mapping,
   heat aggregation, chart series, history summaries/filters/formatting,
   export serializers, degradation thresholds, background-pass orchestration,
   permission mapping and all three stores.
-- **Not under Jest (by decision):** `HeatMapView` (react-native-maps has no
-  harness — all its math lives in tested `heat.ts`), `useSessionData`
+- **Not under Jest (by decision):** `HeatMapView` (all its math lives in
+  tested `heat.ts` / `tiles.ts`), `useSessionData`
   (op-sqlite has no Node harness — failures surface as error state), native
   Kotlin/Swift and WorkManager cadence (device-only).
 - **Deterministic fixtures:** the demo walk (`visualization/testing/seedWalk.ts`)

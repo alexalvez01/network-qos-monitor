@@ -38,3 +38,6 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Deliverables (APK, demo video) — attach separately
+entregables/

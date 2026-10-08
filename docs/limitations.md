@@ -32,28 +32,29 @@ more than faking the capability.
   explicit notice when the `dbm` metric has no samples. Per ADR-10 this
   asymmetry is a platform fact, not an unfinished feature.
 
-## 3. `@notifee/react-native` runtime is unverified on RN 0.87
+## 3. `@notifee/react-native` is unmaintained upstream
 
-- **Cause.** Last publish 2024-12 (~22 months ago); it compiles and autolinks
-  under the New Architecture but no release covers RN 0.87 (PLAN §2, risk R3).
-- **Impact.** Degradation detection (`background/degradation.ts`) is tested;
-  the actual notification display is not confirmed on a device.
-- **Mitigation.** Stated here instead of assumed. The notification call sits
-  behind the injected `notify` seam, so a replacement (or a Notifee upgrade)
-  touches one adapter, not the pass orchestration. Confirm on a physical
-  device before the defense.
+- **Cause.** Last publish 2024-12; no release targets RN 0.87 (PLAN §2, risk R3).
+- **Status.** Verified on the Android 17 (API 37) emulator: the degradation
+  alert is displayed both from a foreground test and from a headless
+  background pass with the app terminated.
+- **Mitigation.** The notification call sits behind the injected `notify`
+  seam, so a replacement touches one adapter, not the pass orchestration.
 
-## 4. OSM tiles cannot carry an identifying User-Agent
+## 4. Map tiles come straight from tile.openstreetmap.org
 
-- **Cause.** `react-native-maps` 1.29.11 `UrlTile` exposes no header option,
-  so tile requests go out without the identifying `User-Agent` the OSM tile
-  usage policy asks for. No API key exists (ADR-7 ruled out provider tokens).
-- **Impact.** A compliance caveat on the map layer: heavy or abusive tile use
-  could draw attention under the policy.
-- **Mitigation (partial).** Zoom is capped at 18 (street-level tiles add
-  nothing to a coverage heatmap), there is exactly one raster layer, no
-  prefetching, and volume is bounded by real usage. This reduces load but
-  does not remove the caveat — hence this entry.
+- **Context.** The heat layer originally used `react-native-maps`. On
+  Android its Google provider aborts the process when no API key is present
+  and, with a placeholder key, renders nothing at all (not even `UrlTile`
+  overlays). The map is now a small slippy-map renderer of our own
+  (`visualization/heatLayer/HeatMapView.tsx` + tested projection math in
+  `heat/tiles.ts`): OSM raster tiles as Images, heat cells as SVG circles.
+- **Impact.** No pinch-zoom or inertia (drag + zoom buttons only); tile use
+  is subject to the OSM tile usage policy.
+- **Mitigation.** Requests carry an identifying `User-Agent`, zoom is capped
+  at 18, there is one raster layer and no prefetching, and the required
+  "© OpenStreetMap contributors" attribution is drawn on the map. For heavy
+  use, point `tileUrl()` at a self-hosted or commercial tile server.
 
 ## 5. Demo on real 4G/5G, not campus Wi-Fi
 
@@ -61,10 +62,11 @@ more than faking the capability.
   a QoS demo captured on Wi-Fi misrepresents the premise of the brief
   (PLAN risk R7).
 - **Impact.** Any demo data or video captured on Wi-Fi weakens the defense.
-- **Mitigation.** The demo video (still pending — recorded by the owner on a
-  real Android device) must be a cellular walk. The seed demo walk exists so
-  emulator screenshots never pretend to be measurements: synthetic data is
-  always labeled "demo".
+- **Mitigation.** The included demo video was recorded on the Android
+  emulator: every number in it is a real measurement taken by the app, but
+  GPS positions are simulated and the "cellular" link is the emulator's
+  virtual 5G modem (its dBm does not vary). Record a second video on a real
+  phone over 4G/5G for the defense. The seed demo walk stays labeled "demo".
 
 ## 6. Background passes are probes-only (no throughput)
 
