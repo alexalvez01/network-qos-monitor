@@ -14,10 +14,10 @@
  *
  * - `configureBackgroundFetch()` — call once from the foreground app (App
  *   effect). Registers the periodic event callback.
- * - Headless registration — kicked off at module scope below, so a
- *   WorkManager wake with the app terminated still finds its handler. It
- *   stays at import time because a terminated app runs the JS bundle
- *   without mounting React, where no effect ever fires.
+ * - `handleHeadlessEvent` — registered synchronously from index.js, so a
+ *   WorkManager wake with the app terminated finds its handler. A
+ *   terminated app runs the JS bundle without mounting React, where no
+ *   effect ever fires.
  *
  * Each pass is probes-only (no throughput transfer): a headless window is
  * short and battery-attributed to the app, so the ~15-minute cadence buys
@@ -31,6 +31,8 @@ import type { MeasurementRepository } from '../data/repository';
 import type { Database } from '../data/database';
 import type { GeoLocator } from '../data/geo';
 import { detectDegradation } from './degradation';
+import { networkTypeLabel } from '../measurement/foregroundPass';
+import type { RadioSnapshot } from '../measurement/foregroundPass';
 import { notifyDegradation } from '../notifications/notifee';
 import { useBackgroundStore } from './backgroundStore';
 import type { BackgroundRunOutcome } from './backgroundStore';
@@ -61,8 +63,15 @@ interface BackgroundFetchLike {
   registerHeadlessTask(task: (event: HeadlessEvent) => Promise<void>): void;
 }
 
-function asBackgroundFetchLike(value: unknown): BackgroundFetchLike | null {
-  if (typeof value !== 'object' || value === null) {
+export function asBackgroundFetchLike(
+  value: unknown,
+): BackgroundFetchLike | null {
+  // The plugin's default export is a class with static members, so a
+  // function is as valid a carrier as a plain object.
+  if (
+    (typeof value !== 'object' && typeof value !== 'function') ||
+    value === null
+  ) {
     return null;
   }
   const candidate = value as Partial<BackgroundFetchLike>;
@@ -95,6 +104,8 @@ export interface BackgroundPassDeps {
   locator?: GeoLocator;
   notify?: (reason: string) => Promise<unknown>;
   now?: () => number;
+  /** Radio at pass time; headless runs have no live store to read from. */
+  radio?: () => Promise<RadioSnapshot>;
 }
 
 export interface BackgroundPassResult {
@@ -113,7 +124,8 @@ async function resolveDeps(
     overrides.repository &&
     overrides.locator &&
     overrides.notify &&
-    overrides.now
+    overrides.now &&
+    overrides.radio
   ) {
     return overrides as Required<BackgroundPassDeps>;
   }
@@ -131,7 +143,29 @@ async function resolveDeps(
     locator: overrides.locator ?? createSystemGeoLocator(),
     notify: overrides.notify ?? notifyDegradation,
     now: overrides.now ?? Date.now,
+    radio: overrides.radio ?? readRadioSnapshot,
   };
+}
+
+/** One-shot NetInfo + native telemetry read; never rejects. */
+async function readRadioSnapshot(): Promise<RadioSnapshot> {
+  try {
+    const NetInfo = (await import('@react-native-community/netinfo')).default;
+    const { mapNetInfoToSnapshot } = await import('../store/networkStore');
+    const { readNativeNetworkInfo } = await import('../telemetry/networkTelemetry');
+    const net = mapNetInfoToSnapshot(await NetInfo.fetch());
+    const native = await readNativeNetworkInfo();
+    const subtype =
+      native.available && native.networkType !== 'UNKNOWN'
+        ? native.networkType
+        : net.subtype;
+    return {
+      networkType: networkTypeLabel({ ...net, subtype }),
+      signalDbm: native.signalDbm,
+    };
+  } catch {
+    return { networkType: null, signalDbm: null };
+  }
 }
 
 /**
@@ -167,9 +201,11 @@ export async function runBackgroundMeasurementPass(
     let samplesPersisted = 0;
     try {
       const position = await deps.locator.getCurrentPosition();
+      const radio = await deps.radio();
       const saved = await deps.repository.saveMeasurementSet(session.id, set, {
         position,
-        networkType: null,
+        networkType: radio.networkType,
+        signalDbm: radio.signalDbm,
         timestamp: set.endedAt,
       });
       samplesPersisted = saved.length;
@@ -203,7 +239,7 @@ export async function runBackgroundMeasurementPass(
   }
 }
 
-async function handleHeadlessEvent(event: HeadlessEvent): Promise<void> {
+export async function handleHeadlessEvent(event: HeadlessEvent): Promise<void> {
   const api = await loadBackgroundFetch();
   if (!api) {
     return;
@@ -227,20 +263,10 @@ async function handleHeadlessEvent(event: HeadlessEvent): Promise<void> {
   }
 }
 
-// Terminated-app registration. Async by necessity (see module docblock);
-// a missing native side resolves to null here instead of crashing import.
-// Ideal placement would be a synchronous call in index.js, which Stage 6
-// may not touch — recorded as a risk.
-void loadBackgroundFetch().then(api => {
-  if (!api) {
-    return;
-  }
-  try {
-    api.registerHeadlessTask(handleHeadlessEvent);
-  } catch {
-    // Registration outside a device runtime must never crash the import.
-  }
-});
+// Terminated-app registration happens synchronously in index.js: the
+// headless runtime looks the task up immediately after evaluating the
+// bundle, so an async (dynamic import) registration arrives too late and
+// the wake is dropped with "No task registered for key BackgroundFetch".
 
 /**
  * Register the periodic WorkManager job. `startOnBoot: true` is guaranteed
