@@ -248,18 +248,16 @@ class NetworkTelemetryModule(reactContext: ReactApplicationContext) :
    * the first JS subscriber and stop when the last one leaves, so the radio
    * is never observed while nobody listens.
    */
-  @ReactMethod
-  fun addListener(eventType: String) {
+  override fun addListener(eventType: String) {
     mainHandler.post {
       if (listenerCount == 0) startPlatformListeners()
       listenerCount += 1
     }
   }
 
-  @ReactMethod
-  fun removeListeners(count: Int) {
+  override fun removeListeners(count: Double) {
     mainHandler.post {
-      listenerCount = (listenerCount - count).coerceAtLeast(0)
+      listenerCount = (listenerCount - count.toInt()).coerceAtLeast(0)
       if (listenerCount == 0) stopPlatformListeners()
     }
   }

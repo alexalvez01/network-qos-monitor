@@ -49,6 +49,14 @@ export interface Spec extends TurboModule {
   getCurrentNetworkInfo(): Promise<NativeNetworkInfo>;
   readonly onSignalStrengthChanged: CodegenTypes.EventEmitter<SignalStrengthEvent>;
   readonly onNetworkStateChanged: CodegenTypes.EventEmitter<NetworkStateEvent>;
+  /**
+   * Reference-counted platform listener lifecycle: radio callbacks start on
+   * the first JS subscriber and stop when the last one leaves. Declared in
+   * the spec so codegen exposes them to JS (undeclared methods are not
+   * reachable on a TurboModule).
+   */
+  addListener(eventName: string): void;
+  removeListeners(count: number): void;
 }
 
 // Nullable on purpose: the module is absent in Jest and on platforms where

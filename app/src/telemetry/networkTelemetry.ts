@@ -12,8 +12,7 @@
  * instead of throwing. Missing data stays null all the way to the screen.
  */
 
-import {NativeEventEmitter} from 'react-native';
-import type {EmitterSubscription} from 'react-native';
+import type {EventSubscription} from 'react-native';
 import type {NativeNetworkInfo} from '../specs/NativeNetworkTelemetry';
 import NativeNetworkTelemetry from '../specs/NativeNetworkTelemetry';
 import {useNetworkStore} from '../store/networkStore';
@@ -132,21 +131,18 @@ export function startNativeTelemetry(): () => void {
     };
   }
 
-  // Structural cast: the codegen TurboModule carries addListener /
-  // removeListeners on the native side (mirrors NativeEventEmitter's
-  // NativeModule shape), but its TS spec type does not declare them.
-  const emitter = new NativeEventEmitter(
-    NativeNetworkTelemetry as unknown as {
-      addListener: (eventType: string) => void;
-      removeListeners: (count: number) => void;
-    },
-  );
-  const subscriptions: EmitterSubscription[] = [
-    emitter.addListener('onSignalStrengthChanged', applySignalEvent),
-    emitter.addListener('onNetworkStateChanged', applyNetworkEvent),
+  // Codegen event emitters deliver the events; addListener/removeListeners
+  // only drive the native listener refcount (platform callbacks run while
+  // someone listens).
+  const module = NativeNetworkTelemetry;
+  const subscriptions: EventSubscription[] = [
+    module.onSignalStrengthChanged(applySignalEvent),
+    module.onNetworkStateChanged(applyNetworkEvent),
   ];
+  module.addListener('onSignalStrengthChanged');
   return () => {
     cancelled = true;
     subscriptions.forEach(subscription => subscription.remove());
+    module.removeListeners(1);
   };
 }

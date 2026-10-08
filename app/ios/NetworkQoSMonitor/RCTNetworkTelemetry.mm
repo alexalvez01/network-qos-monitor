@@ -22,6 +22,7 @@
   NetworkTelemetry *_telemetry;
   NSString *_lastNetworkType;
   id _radioObserver;
+  NSInteger _listenerCount;
 }
 
 - (instancetype)init
@@ -52,6 +53,21 @@
 - (NSArray<NSString *> *)supportedEvents
 {
   return @[@"onSignalStrengthChanged", @"onNetworkStateChanged"];
+}
+
+- (void)addListener:(NSString *)eventName
+{
+  if (_listenerCount++ == 0) {
+    [self startObserving];
+  }
+}
+
+- (void)removeListeners:(double)count
+{
+  _listenerCount = MAX(0, _listenerCount - (NSInteger)count);
+  if (_listenerCount == 0) {
+    [self stopObserving];
+  }
 }
 
 - (void)startObserving
